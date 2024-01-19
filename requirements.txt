@@ -1,4 +1,7 @@
 streamlit==1.15.0
-whisper==0.5.0
+whisper
 librosa==0.8.1
 numpy==1.19.5
+pydub==0.25.1
+torch==1.10.0
+torchaudio==0.10.0
