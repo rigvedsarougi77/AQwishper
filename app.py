@@ -1,44 +1,152 @@
-import streamlit as st
-import concurrent.futures
+import os
 import whisper
-import librosa
-import numpy as np
+import streamlit as st
+from pydub import AudioSegment
+import pandas as pd
 
-def process_chunk(model, chunk, file_path):
-    audio = chunk
-    audio = whisper.pad_or_trim(audio)
-    mel = whisper.log_mel_spectrogram(audio).to(model.device)
-    transcription = model.transcribe(file_path, fp16=False)['text']
-    return transcription
+st.set_page_config(
+    page_title="Whisper based ASR",
+    page_icon="musical_note",
+    layout="wide",
+    initial_sidebar_state="auto",
+)
 
-def transcribe_audio(file_path, chunk_size=10):
-    model = whisper.load_model('medium')
+audio_tags = {'comments': 'Converted using pydub!'}
 
-    # Load the audio file using librosa
-    audio, _ = librosa.load(file_path, sr=16000)
+upload_path = "uploads/"
+download_path = "downloads/"
+transcript_path = "transcripts/"
 
-    # Process audio in chunks
-    chunks = [audio[i:i+chunk_size] for i in range(0, len(audio), chunk_size)]
+fraud_keywords = [
+    'Class after token payment',
+    'Upfront Payment',
+    'Bootcamp',
+    'Token amount is refundable',
+    'Get server after 50 percent of total fee',
+    'Job guarantee',
+    '100% placement guarantee',
+    'Personal account',
+    'Refund',
+    'S4 Hana',
+    'Server Access',
+    'Free classes',
+    'Free Days',
+    'Free trial',
+    'Trial classes',
+    'My account',
+    'First month free',
+    'Free services',
+    'cancellation policy',
+    'Cancel'
+]
 
-    # Use concurrent processing for faster execution
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(process_chunk, model, chunk, file_path) for chunk in chunks]
 
-        # Combine transcription results from processed chunks
-        transcriptions = [future.result() for future in concurrent.futures.as_completed(futures)]
+def to_mp3(audio_file, output_audio_file, upload_path, download_path):
+    if audio_file.name.split('.')[-1].lower() == "wav":
+        audio_data = AudioSegment.from_wav(os.path.join(upload_path, audio_file.name))
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
 
-    return ' '.join(transcriptions)
+    elif audio_file.name.split('.')[-1].lower() == "mp3":
+        audio_data = AudioSegment.from_mp3(os.path.join(upload_path, audio_file.name))
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
 
-def main():
-    st.title("Audio Transcription App")
+    elif audio_file.name.split('.')[-1].lower() == "ogg":
+        audio_data = AudioSegment.from_ogg(os.path.join(upload_path, audio_file.name))
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
 
-    uploaded_file = st.file_uploader("Choose an mp3 audio file", type=["mp3"])
+    elif audio_file.name.split('.')[-1].lower() == "wma":
+        audio_data = AudioSegment.from_file(os.path.join(upload_path, audio_file.name), "wma")
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
 
-    if uploaded_file is not None:
-        # Transcribe audio and display result
-        transcription_result = transcribe_audio(uploaded_file)
-        st.audio(uploaded_file, format='audio/wav')
-        st.write("Transcription:", transcription_result)
+    elif audio_file.name.split('.')[-1].lower() == "aac":
+        audio_data = AudioSegment.from_file(os.path.join(upload_path, audio_file.name), "aac")
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
 
-if __name__ == "__main__":
-    main()
+    elif audio_file.name.split('.')[-1].lower() == "flac":
+        audio_data = AudioSegment.from_file(os.path.join(upload_path, audio_file.name), "flac")
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
+
+    elif audio_file.name.split('.')[-1].lower() == "flv":
+        audio_data = AudioSegment.from_flv(os.path.join(upload_path, audio_file.name))
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
+
+    elif audio_file.name.split('.')[-1].lower() == "mp4":
+        audio_data = AudioSegment.from_file(os.path.join(upload_path, audio_file.name), "mp4")
+        audio_data.export(os.path.join(download_path, output_audio_file), format="mp3", tags=audio_tags)
+    return output_audio_file
+
+def process_audio(filename, model_type):
+    model = whisper.load_model(model_type)
+    result = model.transcribe(filename)
+    return result["text"]
+
+def save_transcript(transcript_data, txt_file):
+    with open(os.path.join(transcript_path, txt_file), "w") as f:
+        f.write(transcript_data)
+
+st.title("Automatic Speech Recognition")
+st.info('Supports Audio formats - WAV, MP3, MP4, OGG, WMA, AAC, FLAC, FLV')
+uploaded_file = st.file_uploader("Upload audio file", type=["wav", "mp3", "ogg", "wma", "aac", "flac", "mp4", "flv"])
+
+audio_file = None
+
+if uploaded_file is not None:
+    audio_bytes = uploaded_file.read()
+    with open(os.path.join(upload_path, uploaded_file.name), "wb") as f:
+        f.write((uploaded_file).getbuffer())
+    with st.spinner(f"Processing Audio"):
+        output_audio_file = uploaded_file.name.split('.')[0] + '.mp3'
+        output_audio_file = to_mp3(uploaded_file, output_audio_file, upload_path, download_path)
+        audio_file = open(os.path.join(download_path, output_audio_file), 'rb')
+        audio_bytes = audio_file.read()
+    print("Opening ", audio_file)
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("Feel free to play your uploaded audio file")
+        st.audio(audio_bytes)
+    with col2:
+        whisper_model_type = st.radio("Please choose your model type", ('Tiny', 'Base', 'Small', 'Medium', 'Large'))
+
+    if st.button("Generate Transcript"):
+        with st.spinner(f"Generating Transcript"):
+            transcript = process_audio(str(os.path.abspath(os.path.join(download_path, output_audio_file))),
+                                       whisper_model_type.lower())
+
+            output_txt_file = str(output_audio_file.split('.')[0] + ".txt")
+
+            save_transcript(transcript, output_txt_file)
+            output_file = open(os.path.join(transcript_path, output_txt_file), "r")
+            output_file_data = output_file.read()
+
+            # Fraud detection
+            detected_keywords = [keyword for keyword in fraud_keywords if keyword.lower() in output_file_data.lower()]
+            fraud_detected = len(detected_keywords) > 0
+
+            output_df = pd.DataFrame({
+                'Uploaded File Name': [uploaded_file.name],
+                'Output File Data': [output_file_data],
+                'Detected Keywords': [detected_keywords],
+                'Fraud Detected': [fraud_detected]
+            })
+
+        if st.download_button(
+                label="Download Transcript",
+                data=output_file_data,
+                file_name=output_txt_file,
+                mime='text/plain'
+        ):
+            st.balloons()
+            st.success(' Download Successful ')
+
+else:
+    st.warning(' Please upload your audio file ')
+
+# Display the result dataframe
+if 'output_df' in locals():
+    st.subheader("Fraud Detection Result:")
+    st.write(output_df)
+
+st.markdown(
+    "<br><hr><center>Made by <a href='mailto:rigved.sarougi@henryharvin.com?subject=ASR Whisper WebApp!&body=Please specify the issue you are facing with the app.'><strong>Rigved Sarougi</strong><hr>",
+    unsafe_allow_html=True)
