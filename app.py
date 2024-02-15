@@ -30,6 +30,7 @@ fraud_keywords = [
     'S4 Hana',
     'Server Access',
     'Free classes',
+    'Free',
     'Free Days',
     'Free trial',
     'Trial classes',
